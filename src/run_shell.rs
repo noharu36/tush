@@ -1,28 +1,32 @@
-use crate::commands::{cd, exit, time_manage};
-use colored::*;
 use nix::{
     errno::Errno,
     sys::{
         signal::{self, SaFlags, SigAction, SigHandler, SigSet, Signal},
-        wait::waitpid,
+        wait::waitpid
     },
-    unistd::{close, execvp, fork, getpgrp, pipe, read, setpgid, tcsetpgrp, ForkResult},
+    unistd::{
+        close, execvp, fork, getpgrp, pipe, read, setpgid, tcsetpgrp,
+        ForkResult}
 };
-use once_cell::sync::Lazy;
 use std::{
     env,
     ffi::CString,
-    io::Write,
-    os::fd::{AsFd, AsRawFd, BorrowedFd, IntoRawFd},
+    io::{self, Write},
+    os::fd::{AsFd, AsRawFd, BorrowedFd, IntoRawFd}
 };
 use whoami;
+use crate::commands::{cd, time_manage, exit};
+use colored::*;
+use once_cell::sync::Lazy;
 
 #[derive(Debug)]
 enum Action {
-    SimpleCommand(Vec<String>),
+    SimpleCommand(Vec<String>)
 }
 
-static BUILTIN_COMMANDS: Lazy<Vec<&str>> = Lazy::new(|| vec!["cd", "work", "exit"]);
+static BUILTIN_COMMANDS: Lazy<Vec<&str>> = Lazy::new(|| {
+    vec!["cd", "work","exit"]
+});
 unsafe fn stdin_fd() -> impl AsFd {
     unsafe { BorrowedFd::borrow_raw(nix::libc::STDIN_FILENO) }
 }
@@ -42,19 +46,13 @@ pub fn shell_loop() {
 }
 
 fn shell_read_line() -> Option<String> {
-    print!(
-        "{}{}{} {}\n> ",
-        "@".bright_cyan().bold(),
-        whoami::username().bright_cyan().bold(),
-        ":".bright_magenta().bold(),
-        env::current_dir()
-            .unwrap()
-            .display()
-            .to_string()
-            .bright_magenta()
-            .bold()
+    print!("{}{}{} {}\n> ",
+           "@".bright_cyan().bold(),
+           whoami::username().bright_cyan().bold(),
+           ":".bright_magenta().bold(),
+           env::current_dir().unwrap().display().to_string().bright_magenta().bold()
     );
-    stdout().flush().unwrap();
+    io::stdout().flush().unwrap();
 
     let mut result = String::new();
     match io::stdin().read_line(&mut result) {
@@ -64,7 +62,7 @@ fn shell_read_line() -> Option<String> {
             } else {
                 Some(result.trim_end().to_string())
             }
-        }
+        },
         Err(e) => {
             eprintln!("{}", e);
             None
@@ -88,11 +86,12 @@ fn shell_exec_simple_command(command: Vec<String>) {
     if BUILTIN_COMMANDS.contains(&command[0].as_str()) {
         match command[0].as_str() {
             "cd" => cd::chdir(command.clone()),
-            "work" => time_manage::time_manage(command.clone()),
             "exit" => exit::exit(),
-            _ => unimplemented!(),
+            "work" => time_manage::time_manage(command.clone()),
+            _ => unimplemented!()
         }
     } else {
+
         match unsafe { fork() } {
             Ok(ForkResult::Parent { child, .. }) => {
                 setpgid(child, child).unwrap();
@@ -104,7 +103,7 @@ fn shell_exec_simple_command(command: Vec<String>) {
                 waitpid(child, None).ok();
 
                 tcsetpgrp(unsafe { stdin_fd() }, getpgrp()).unwrap();
-            }
+            },
             Ok(ForkResult::Child) => {
                 restore_tty_signals();
 
@@ -114,20 +113,19 @@ fn shell_exec_simple_command(command: Vec<String>) {
                     let mut buf = [0];
                     match read(pipe_read.as_raw_fd(), &mut buf) {
                         Err(e) if e == Errno::EINTR => (),
-                        _ => break,
+                        _ => break
                     }
                 }
                 close(pipe_read.into_raw_fd()).unwrap();
 
-                let args = command
-                    .into_iter()
-                    .map(|c| CString::new(c).unwrap())
-                    .collect::<Vec<_>>();
+                let args = command.into_iter().map(|c| CString::new(c).unwrap()).collect::<Vec<_>>();
                 execvp(&args[0], &args).unwrap();
-            }
-            Err(e) => eprintln!("fork error: {}", e),
+
+            },
+            Err(e) => eprintln!("fork error: {}", e)
         }
     }
+
 }
 
 fn ignore_tty_signals() {
