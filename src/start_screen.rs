@@ -8,7 +8,7 @@ pub fn render() {
                         ╭╯ TIME ╭╯
         ▓▓██████████▒ ╭━╯               {} {} {} {} {}🚬
         ",
-        "Hello tush!".bright_cyan().bold(),
+        "Welcome to tush!".bright_cyan().bold(),
         "tupakka".bright_red().bold(),
         "+".bright_white().bold(),
         "shell".bright_magenta().bold(),

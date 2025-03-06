@@ -27,6 +27,7 @@ enum Action {
 static BUILTIN_COMMANDS: Lazy<Vec<&str>> = Lazy::new(|| {
     vec!["cd", "work","exit"]
 });
+
 unsafe fn stdin_fd() -> impl AsFd {
     unsafe { BorrowedFd::borrow_raw(nix::libc::STDIN_FILENO) }
 }
